@@ -5,10 +5,12 @@ import com.rjrudin.marklogic.appdeployer.command.SortOrderConstants;
 
 public class DeployTriggersDatabaseCommand extends DeployDatabaseCommand {
 
+    public final static String DATABASE_FILENAME = "triggers-database.json";
+
     public DeployTriggersDatabaseCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_TRIGGERS_DATABASE);
         setUndoSortOrder(SortOrderConstants.DELETE_TRIGGERS_DATABASE);
-        setDatabaseFilename("triggers-database.json");
+        setDatabaseFilename(DATABASE_FILENAME);
         setCreateForestsOnEachHost(false);
     }
 
@@ -27,7 +29,7 @@ public class DeployTriggersDatabaseCommand extends DeployDatabaseCommand {
         }
         super.undo(context);
     }
-    
+
     protected String buildDefaultDatabasePayload(CommandContext context) {
         return format("{\"database-name\": \"%s\"}", context.getAppConfig().getTriggersDatabaseName());
     }
