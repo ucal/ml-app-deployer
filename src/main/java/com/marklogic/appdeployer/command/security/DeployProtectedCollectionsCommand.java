@@ -13,6 +13,7 @@ public class DeployProtectedCollectionsCommand extends AbstractResourceCommand {
     public DeployProtectedCollectionsCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_PROTECTED_COLLECTIONS);
         setUndoSortOrder(SortOrderConstants.DELETE_PROTECTED_COLLECTIONS);
+        setExecuteAsync(true);
     }
 
     @Override
