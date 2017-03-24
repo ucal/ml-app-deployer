@@ -1,13 +1,10 @@
 package com.marklogic.appdeployer.command;
 
-import java.io.File;
-
 import com.marklogic.mgmt.ResourceManager;
 import com.marklogic.mgmt.SaveReceipt;
 import com.marklogic.mgmt.admin.ActionRequiringRestart;
-import org.springframework.core.task.TaskExecutor;
-import org.springframework.scheduling.concurrent.ExecutorConfigurationSupport;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.io.File;
 
 /**
  * Provides a basic implementation for creating/updating a resource while an app is being deployed and then deleting it
@@ -19,28 +16,23 @@ public abstract class AbstractResourceCommand extends AbstractUndoableCommand {
     private boolean restartAfterDelete = false;
     private boolean catchExceptionOnDeleteFailure = false;
 
-    // For processing files asynchronously - only works for some resources
-    private boolean processFilesAsync = false;
-    private TaskExecutor taskExecutor;
-    private int taskThreadCount = 16;
-
-    protected abstract File[] getResourceDirs(CommandContext context);
+	protected abstract File[] getResourceDirs(CommandContext context);
 
     protected abstract ResourceManager getResourceManager(CommandContext context);
 
     @Override
     public void execute(CommandContext context) {
-        initializeThreadPoolIfAsync();
+	    initializeTaskExecutorIfAsync();
         for (File resourceDir : getResourceDirs(context)) {
             processExecuteOnResourceDir(context, resourceDir);
         }
         waitForTasksToFinishIfAsync();
     }
 
-    @Override
+	@Override
     public void undo(CommandContext context) {
         if (deleteResourcesOnUndo) {
-            initializeThreadPoolIfAsync();
+	        initializeTaskExecutorIfAsync();
             for (File resourceDir : getResourceDirs(context)) {
                 processUndoOnResourceDir(context, resourceDir);
             }
@@ -48,30 +40,17 @@ public abstract class AbstractResourceCommand extends AbstractUndoableCommand {
         }
     }
 
-	/**
-	 * If we're processing files asynchronously, we default to instantiating a Spring ThreadPoolTaskExecutor to do the
-	 * job.
-	 */
-	protected void initializeThreadPoolIfAsync() {
-        if (processFilesAsync && taskExecutor == null) {
-            ThreadPoolTaskExecutor tpte = new ThreadPoolTaskExecutor();
-            tpte.setCorePoolSize(taskThreadCount);
-            tpte.setWaitForTasksToCompleteOnShutdown(true);
-            tpte.setAwaitTerminationSeconds(60 * 60 * 12); // wait up to 12 hours for threads to finish
-            tpte.afterPropertiesSet();
-            this.taskExecutor = tpte;
-        }
-    }
+	protected void initializeTaskExecutorIfAsync() {
+		if (isExecuteAsync()) {
+			initializeTaskExecutor();
+		}
+	}
 
-	/**
-	 * If we're processing files asynchronously, we need to wait for the task executor to finish before moving on.
-	 */
 	protected void waitForTasksToFinishIfAsync() {
-        if (processFilesAsync && taskExecutor != null && taskExecutor instanceof ExecutorConfigurationSupport) {
-            ((ExecutorConfigurationSupport)taskExecutor).shutdown();
-            taskExecutor = null;
-        }
-    }
+    	if (isExecuteAsync()) {
+    		waitForTasksToFinish();
+	    }
+	}
 
 	/**
 	 * Process all of the eligible resource files in the given directory.
@@ -86,8 +65,8 @@ public abstract class AbstractResourceCommand extends AbstractUndoableCommand {
                 logger.info("Processing files in directory: " + resourceDir.getAbsolutePath());
             }
             for (final File f : listFilesInDirectory(resourceDir)) {
-            	if (processFilesAsync) {
-            		taskExecutor.execute(new Runnable() {
+            	if (isExecuteAsync()) {
+            		getTaskExecutor().execute(new Runnable() {
 			            @Override
 			            public void run() {
 				            processFileOnExecute(f, mgr, context);
@@ -129,19 +108,46 @@ public abstract class AbstractResourceCommand extends AbstractUndoableCommand {
 
     }
 
-    protected void processUndoOnResourceDir(CommandContext context, File resourceDir) {
+	/**
+	 * Process every eligible file in the given resource directory.
+	 *
+	 * @param context
+	 * @param resourceDir
+	 */
+	protected void processUndoOnResourceDir(final CommandContext context, File resourceDir) {
         if (resourceDir.exists()) {
             if (logger.isInfoEnabled()) {
                 logger.info("Processing files in directory: " + resourceDir.getAbsolutePath());
             }
             final ResourceManager mgr = getResourceManager(context);
-            for (File f : listFilesInDirectory(resourceDir)) {
-                if (logger.isInfoEnabled()) {
-                    logger.info("Processing file: " + f.getAbsolutePath());
-                }
-                deleteResource(mgr, context, f);
+            for (final File f : listFilesInDirectory(resourceDir)) {
+            	if (isExecuteAsync()) {
+            		getTaskExecutor().execute(new Runnable() {
+			            @Override
+			            public void run() {
+				            processFileOnUndo(f, mgr, context);
+			            }
+		            });
+	            } else {
+            		processFileOnUndo(f, mgr, context);
+	            }
             }
         }
+    }
+
+	/**
+	 * Low-level method for processing a single file on undo. Broken out into a separate method so it can be easily
+	 * called asynchronously if needed.
+	 *
+	 * @param f
+	 * @param mgr
+	 * @param context
+	 */
+    protected void processFileOnUndo(File f, ResourceManager mgr, CommandContext context) {
+	    if (logger.isInfoEnabled()) {
+		    logger.info("Processing file: " + f.getAbsolutePath());
+	    }
+	    deleteResource(mgr, context, f);
     }
 
     /**
@@ -197,21 +203,5 @@ public abstract class AbstractResourceCommand extends AbstractUndoableCommand {
 
     public void setCatchExceptionOnDeleteFailure(boolean catchExceptionOnDeleteFailure) {
         this.catchExceptionOnDeleteFailure = catchExceptionOnDeleteFailure;
-    }
-
-    public void setTaskExecutor(TaskExecutor taskExecutor) {
-        this.taskExecutor = taskExecutor;
-    }
-
-    public void setProcessFilesAsync(boolean processFilesAsync) {
-        this.processFilesAsync = processFilesAsync;
-    }
-
-    public TaskExecutor getTaskExecutor() {
-        return taskExecutor;
-    }
-
-    public void setTaskThreadCount(int taskThreadCount) {
-        this.taskThreadCount = taskThreadCount;
     }
 }

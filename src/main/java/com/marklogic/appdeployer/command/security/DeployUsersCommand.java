@@ -13,6 +13,7 @@ public class DeployUsersCommand extends AbstractResourceCommand {
     public DeployUsersCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_USERS);
         setUndoSortOrder(SortOrderConstants.DELETE_USERS);
+        setExecuteAsync(true);
     }
 
     protected File[] getResourceDirs(CommandContext context) {

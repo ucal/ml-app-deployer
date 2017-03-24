@@ -4,6 +4,7 @@ import com.marklogic.appdeployer.AbstractAppDeployerTest;
 import com.marklogic.appdeployer.ConfigDir;
 import com.marklogic.appdeployer.command.databases.DeployContentDatabasesCommand;
 import com.marklogic.mgmt.forests.ForestManager;
+import com.marklogic.mgmt.hosts.HostManager;
 import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -13,7 +14,6 @@ import java.io.File;
 /**
  * Verifies that directories under ./forests/ are processed correctly.
  */
-@Ignore("Failing on travis because it's not using the right hostname for forests, not sure how to fix yet")
 public class DeployCustomForestsTest extends AbstractAppDeployerTest {
 
 	@After
@@ -25,7 +25,7 @@ public class DeployCustomForestsTest extends AbstractAppDeployerTest {
 	public void test() {
 		// To avoid hardcoding host names that might cause the test to fail, we use a custom token and assume that
 		// the host of the Management API will work
-		appConfig.getCustomTokens().put("%%CUSTOM_HOST%%", super.manageConfig.getHost());
+		appConfig.getCustomTokens().put("%%CUSTOM_HOST%%", new HostManager(manageClient).getHostNames().get(0));
 
 		appConfig.setConfigDir(new ConfigDir(new File("src/test/resources/sample-app/custom-forests")));
 

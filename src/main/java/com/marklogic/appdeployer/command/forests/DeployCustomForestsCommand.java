@@ -3,6 +3,7 @@ package com.marklogic.appdeployer.command.forests;
 import com.marklogic.appdeployer.command.AbstractCommand;
 import com.marklogic.appdeployer.command.CommandContext;
 import com.marklogic.appdeployer.command.SortOrderConstants;
+import com.marklogic.mgmt.ResourceManager;
 import com.marklogic.mgmt.forests.ForestManager;
 
 import java.io.File;
@@ -23,26 +24,46 @@ public class DeployCustomForestsCommand extends AbstractCommand {
 
 	public DeployCustomForestsCommand() {
 		setExecuteSortOrder(SortOrderConstants.DEPLOY_FORESTS);
+		setExecuteAsync(true);
 	}
 
 	@Override
 	public void execute(CommandContext context) {
 		File dir = new File(context.getAppConfig().getConfigDir().getBaseDir(), customForestsPath);
 		if (dir != null && dir.exists()) {
+			if (isExecuteAsync()) {
+				initializeTaskExecutor();
+			}
 			for (File f : dir.listFiles()) {
 				if (f.isDirectory()) {
 					processDirectory(f, context);
 				}
 			}
+			if (isExecuteAsync()) {
+				waitForTasksToFinish();
+			}
 		}
 	}
 
-	protected void processDirectory(File dir, CommandContext context) {
-		ForestManager mgr = new ForestManager(context.getManageClient());
-		for (File f : listFilesInDirectory(dir)) {
-			String payload = copyFileToString(f, context);
-			mgr.saveJsonForests(payload);
+	protected void processDirectory(File dir, final CommandContext context) {
+		final ForestManager mgr = new ForestManager(context.getManageClient());
+		for (final File f : listFilesInDirectory(dir)) {
+			if (isExecuteAsync()) {
+				getTaskExecutor().execute(new Runnable() {
+					@Override
+					public void run() {
+						processFile(f, mgr, context);
+					}
+				});
+			} else {
+				processFile(f, mgr, context);
+			}
 		}
+	}
+
+	protected void processFile(File f, ForestManager mgr, CommandContext context) {
+		String payload = copyFileToString(f, context);
+		mgr.saveJsonForests(payload);
 	}
 
 	public void setCustomForestsPath(String customForestsPath) {

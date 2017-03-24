@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.marklogic.mgmt.AbstractResourceManager;
 import com.marklogic.mgmt.ManageClient;
 import com.marklogic.rest.util.Fragment;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -69,16 +71,48 @@ public class ForestManager extends AbstractResourceManager {
 	 * @param json
 	 */
 	public void saveJsonForests(String json) {
-		JsonNode node = super.payloadParser.parseJson(json);
-		if (node.isArray()) {
-			Iterator<JsonNode> iter = node.iterator();
-			while (iter.hasNext()) {
-				save(iter.next().toString());
-			}
-		} else {
-			save(json);
-		}
+	    saveJsonForests(json, true);
 	}
+
+    /**
+     * Supports either an array of JSON objects or a single JSON object.
+     *
+     * @param json
+     * @param async if true, and the JSON is an array, uses a Spring ThreadPoolTaskExecutor to save each forest asynchronously
+     */
+    public void saveJsonForests(String json, boolean async) {
+        JsonNode node = super.payloadParser.parseJson(json);
+        if (node.isArray()) {
+            ThreadPoolTaskExecutor taskExecutor = null;
+            if (async) {
+            	taskExecutor = new ThreadPoolTaskExecutor();
+                taskExecutor.setCorePoolSize(16);
+                taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
+                taskExecutor.setAwaitTerminationSeconds(60 * 60 * 12);
+                taskExecutor.setThreadNamePrefix("ForestManager-");
+                taskExecutor.afterPropertiesSet();
+            }
+            Iterator<JsonNode> iter = node.iterator();
+            while (iter.hasNext()) {
+                final String forestJson = iter.next().toString();
+                if (async) {
+                    taskExecutor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            save(forestJson);
+                        }
+                    });
+                } else {
+                    save(forestJson);
+                }
+            }
+            if (async) {
+                taskExecutor.shutdown();
+            }
+        } else {
+            save(json);
+        }
+    }
 
     public void createJsonForest(String json) {
         getManageClient().postJson("/manage/v2/forests", json);

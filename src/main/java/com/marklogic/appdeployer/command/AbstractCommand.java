@@ -8,6 +8,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ExecutorConfigurationSupport;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.FileCopyUtils;
 
 import com.marklogic.client.helper.LoggingObject;
@@ -25,6 +29,17 @@ public abstract class AbstractCommand extends LoggingObject implements Command {
 
     protected TokenReplacer tokenReplacer = new DefaultTokenReplacer();
     private FilenameFilter resourceFilenameFilter = new ResourceFilenameFilter();
+
+	/**
+	 * Some resources can be created/destroyed in parallel, where ordering doesn't matter - e.g. privileges, users,
+	 * forests, etc. A command typically will set executeAsync to true if it's able to process asynchronously. You can
+	 * set executeAsync to true for any resource, but be aware that this could lead to errors for some resources
+	 * depending on their contents (e.g. roles often can't be loaded asynchronously because they can depend on each
+	 * other).
+	 */
+	private TaskExecutor taskExecutor;
+    private int taskThreadCount = 16;
+    private boolean executeAsync = false;
 
     /**
      * A subclass can set the executeSortOrder attribute to whatever value it needs.
@@ -146,6 +161,28 @@ public abstract class AbstractCommand extends LoggingObject implements Command {
         return files;
     }
 
+    /**
+     * Commands that wish to use a TaskExecutor can call this to use a Spring ThreadPoolTaskExecutor by default.
+     */
+    protected void initializeTaskExecutor() {
+        if (taskExecutor == null) {
+            ThreadPoolTaskExecutor tpte = new ThreadPoolTaskExecutor();
+            tpte.setCorePoolSize(taskThreadCount);
+            tpte.setWaitForTasksToCompleteOnShutdown(true);
+            tpte.setAwaitTerminationSeconds(60 * 60 * 12); // wait up to 12 hours for threads to finish
+	        tpte.setThreadNamePrefix(ClassUtils.getShortName(getClass()));
+            tpte.afterPropertiesSet();
+            this.taskExecutor = tpte;
+        }
+    }
+
+    protected void waitForTasksToFinish() {
+        if (taskExecutor != null && taskExecutor instanceof ExecutorConfigurationSupport) {
+            ((ExecutorConfigurationSupport)taskExecutor).shutdown();
+            taskExecutor = null;
+        }
+    }
+
     public void setTokenReplacer(TokenReplacer tokenReplacer) {
         this.tokenReplacer = tokenReplacer;
     }
@@ -160,5 +197,25 @@ public abstract class AbstractCommand extends LoggingObject implements Command {
 
     public void setResourceFilenameFilter(FilenameFilter resourceFilenameFilter) {
         this.resourceFilenameFilter = resourceFilenameFilter;
+    }
+
+    public void setTaskExecutor(TaskExecutor taskExecutor) {
+        this.taskExecutor = taskExecutor;
+    }
+
+    public TaskExecutor getTaskExecutor() {
+        return taskExecutor;
+    }
+
+    public void setTaskThreadCount(int taskThreadCount) {
+        this.taskThreadCount = taskThreadCount;
+    }
+
+    public boolean isExecuteAsync() {
+        return executeAsync;
+    }
+
+    public void setExecuteAsync(boolean executeAsync) {
+        this.executeAsync = executeAsync;
     }
 }

@@ -13,7 +13,7 @@ public class DeployPrivilegesCommand extends AbstractResourceCommand {
     public DeployPrivilegesCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_PRIVILEGES);
         setUndoSortOrder(SortOrderConstants.DELETE_PRIVILEGES);
-        setProcessFilesAsync(true);
+        setExecuteAsync(true);
     }
 
     @Override
