@@ -1,6 +1,7 @@
 package com.marklogic.mgmt;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.ClassUtils;
 
 import com.marklogic.client.helper.LoggingObject;
@@ -57,5 +58,21 @@ public class AbstractManager extends LoggingObject {
             return useAdmin ? client.postJsonAsAdmin(path, payload) : client.postJson(path, payload);
         }
         return useAdmin ? client.postXmlAsAdmin(path, payload) : client.postXml(path, payload);
+    }
+
+    /**
+     * Some management operations can benefit from making multiple calls in parallel to the Manage API. This is a
+     * convenience method for obtaining a Spring ThreadPoolTaskExecutor to simplify the job.
+     *
+     * @return
+     */
+    protected ThreadPoolTaskExecutor newThreadPoolTaskExecutor() {
+        ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
+        taskExecutor.setCorePoolSize(16);
+        taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
+        taskExecutor.setAwaitTerminationSeconds(60 * 60 * 12);
+        taskExecutor.setThreadNamePrefix(ClassUtils.getShortName(getClass()) + "-");
+        taskExecutor.afterPropertiesSet();
+        return taskExecutor;
     }
 }

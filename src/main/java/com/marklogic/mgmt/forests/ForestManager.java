@@ -85,12 +85,7 @@ public class ForestManager extends AbstractResourceManager {
         if (node.isArray()) {
             ThreadPoolTaskExecutor taskExecutor = null;
             if (async) {
-            	taskExecutor = new ThreadPoolTaskExecutor();
-                taskExecutor.setCorePoolSize(16);
-                taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
-                taskExecutor.setAwaitTerminationSeconds(60 * 60 * 12);
-                taskExecutor.setThreadNamePrefix("ForestManager-");
-                taskExecutor.afterPropertiesSet();
+                taskExecutor = newThreadPoolTaskExecutor();
             }
             Iterator<JsonNode> iter = node.iterator();
             while (iter.hasNext()) {
