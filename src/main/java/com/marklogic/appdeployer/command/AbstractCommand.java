@@ -170,7 +170,7 @@ public abstract class AbstractCommand extends LoggingObject implements Command {
             tpte.setCorePoolSize(taskThreadCount);
             tpte.setWaitForTasksToCompleteOnShutdown(true);
             tpte.setAwaitTerminationSeconds(60 * 60 * 12); // wait up to 12 hours for threads to finish
-	        tpte.setThreadNamePrefix(ClassUtils.getShortName(getClass()));
+	        tpte.setThreadNamePrefix(ClassUtils.getShortName(getClass()) + "-");
             tpte.afterPropertiesSet();
             this.taskExecutor = tpte;
         }

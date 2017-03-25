@@ -20,7 +20,7 @@ public class CreateDatabaseWithCustomForestsTest extends AbstractAppDeployerTest
         // We want both main and test databases
         appConfig.setTestRestPort(SAMPLE_APP_TEST_REST_PORT);
 
-        final int numberOfForests = 4;
+        final int numberOfForests = 8;
 
         DeployContentDatabasesCommand command = new DeployContentDatabasesCommand();
         command.setForestsPerHost(numberOfForests);
@@ -33,7 +33,7 @@ public class CreateDatabaseWithCustomForestsTest extends AbstractAppDeployerTest
 
         try {
             appDeployer.deploy(appConfig);
-
+            
             assertTrue(dbMgr.exists(appConfig.getContentDatabaseName()));
             assertTrue(dbMgr.exists(appConfig.getTestContentDatabaseName()));
             assertTrue(dbMgr.exists(appConfig.getTriggersDatabaseName()));

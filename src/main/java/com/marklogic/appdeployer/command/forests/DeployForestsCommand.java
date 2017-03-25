@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.StringUtils;
 
 import com.marklogic.appdeployer.AppConfig;
@@ -34,6 +35,7 @@ public class DeployForestsCommand extends AbstractCommand {
 
     public DeployForestsCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_FORESTS);
+        setExecuteAsync(true);
     }
 
     /**
@@ -72,7 +74,7 @@ public class DeployForestsCommand extends AbstractCommand {
      * dynamically generated based on what hosts exist and how many forests should be created on each host.
      */
     protected void createForests(String originalPayload, CommandContext context) {
-        ForestManager mgr = new ForestManager(context.getManageClient());
+        final ForestManager mgr = new ForestManager(context.getManageClient());
         AppConfig appConfig = context.getAppConfig();
 
         // Find out which hosts to create forests on
@@ -88,6 +90,10 @@ public class DeployForestsCommand extends AbstractCommand {
         int countOfExistingForests = new DatabaseManager(context.getManageClient()).getPrimaryForestIds(getForestDatabaseName(appConfig)).size();
         int desiredNumberOfForests = hostNames.size() * forestsPerHost;
 
+        if (isExecuteAsync()) {
+            initializeTaskExecutor();
+        }
+
         // Loop over the number of forests to create, starting with count + 1, and iterating over the hosts
         for (int i = countOfExistingForests + 1; i <= desiredNumberOfForests;) {
             for (String hostName : hostNames) {
@@ -97,8 +103,18 @@ public class DeployForestsCommand extends AbstractCommand {
                     String forestName = getForestName(appConfig, i);
                     payload = payload.replace("%%FOREST_NAME%%", forestName);
                     payload = payload.replace("%%FOREST_DATABASE%%", getForestDatabaseName(appConfig));
+                    final String finalPayload = payload;
                     logger.info(format("Creating forest %s on host %s", forestName, hostName));
-                    mgr.save(payload);
+                    if (isExecuteAsync()) {
+                        getTaskExecutor().execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                mgr.save(finalPayload);
+                            }
+                        });
+                    } else {
+                        mgr.save(finalPayload);
+                    }
                 }
                 i++;
             }
