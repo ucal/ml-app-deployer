@@ -16,6 +16,7 @@ public class DeployScheduledTasksCommand extends AbstractResourceCommand {
     public DeployScheduledTasksCommand() {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_SCHEDULED_TASKS);
         setUndoSortOrder(SortOrderConstants.DELETE_SCHEDULED_TASKS);
+        setExecuteAsync(true);
     }
 
     @Override
@@ -43,6 +44,7 @@ public class DeployScheduledTasksCommand extends AbstractResourceCommand {
     public void execute(CommandContext context) {
         super.execute(context);
 
+        initializeTaskExecutorIfAsync();
         String originalGroupName = this.groupName;
         for (File resourceDir : getResourceDirs(context)) {
         	if (resourceDir != null && resourceDir.isDirectory()) {
@@ -52,6 +54,8 @@ public class DeployScheduledTasksCommand extends AbstractResourceCommand {
 		        }
 	        }
         }
+        waitForTasksToFinishIfAsync();
+
         setGroupName(originalGroupName);
     }
 
@@ -66,6 +70,7 @@ public class DeployScheduledTasksCommand extends AbstractResourceCommand {
     public void undo(CommandContext context) {
         super.undo(context);
 
+		initializeTaskExecutorIfAsync();
 		String originalGroupName = this.groupName;
 		for (File resourceDir : getResourceDirs(context)) {
 			if (resourceDir != null && resourceDir.isDirectory()) {
@@ -75,6 +80,8 @@ public class DeployScheduledTasksCommand extends AbstractResourceCommand {
 				}
 			}
 		}
+		waitForTasksToFinishIfAsync();
+
 		setGroupName(originalGroupName);
     }
 

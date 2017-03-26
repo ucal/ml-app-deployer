@@ -20,6 +20,7 @@ public class DeployTriggersCommand extends AbstractResourceCommand {
         setExecuteSortOrder(SortOrderConstants.DEPLOY_TRIGGERS);
         // Triggers are stored in a database, so we don't need to delete them as the database will be deleted
         setDeleteResourcesOnUndo(false);
+        setExecuteAsync(true);
     }
 
     @Override
